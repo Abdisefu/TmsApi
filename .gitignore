@@ -1,0 +1,8 @@
+# Avoid tracking built binaries and temporary build files
+bin/
+obj/
+
+# Avoid tracking user-specific IDE settings
+.vs/
+.vscode/
+*.user
