@@ -1,36 +1,56 @@
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Authentication; // 👈 Add this using directive at the top
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args); 
 
-// Services: Register authentication with a fallback policy so it doesn't throw a scheme error
+// ==========================================
+// SERVICES CONFIGURATION (DI Container)
+// ==========================================
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = "DefaultScheme";
     options.DefaultChallengeScheme = "DefaultScheme";
 })
-.AddScheme<AuthenticationSchemeOptions, MyCustomHandler>("DefaultScheme", null); // Helper dummy scheme
+.AddScheme<AuthenticationSchemeOptions, MyCustomHandler>("DefaultScheme", null);
 
 builder.Services.AddAuthorization();
 
 var app = builder.Build(); 
+app.UseMiddleware<RequestLoggingMiddleware>();
 
-app.UseRouting(); // The server finds where the user wants to go.
+// 2. Then Exception Handler (Points to our /api/error route below)
+app.UseExceptionHandler("/api/error"); 
 
-app.UseAuthentication(); // The server asks: "Who are you?"
-app.UseAuthorization(); //The server asks: "Do you have permission to come inside?"
+app.UseRouting(); 
+
+app.UseAuthentication(); 
+
+app.UseAuthorization(); 
 
 app.MapGet("/api/assessments/results", () => 
 {
     return Results.Ok(System.Array.Empty<string>()); 
 })
 .RequireAuthorization(); 
+app.Map("/api/error", () => Results.Problem(
+    detail: "An unexpected error occurred.",
+    statusCode: 500,
+    title: "Internal Server Error"
+));
 
 app.Run();
 
-// 💡 A small custom dummy handler class placed at the very bottom of the file to stop the crash
-public class MyCustomHandler : Microsoft.AspNetCore.Authentication.AuthenticationHandler<AuthenticationSchemeOptions>
+public class MyCustomHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
-    public MyCustomHandler(Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, System.Text.Encodings.Web.UrlEncoder encoder) : base(options, logger, encoder) { }
-    protected override System.Threading.Tasks.Task<AuthenticateResult> HandleAuthenticateAsync() => System.Threading.Tasks.Task.FromResult(AuthenticateResult.Fail("Unauthorized"));
+    public MyCustomHandler(
+        Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options, 
+        ILoggerFactory logger, 
+        System.Text.Encodings.Web.UrlEncoder encoder) 
+        : base(options, logger, encoder) { }
+
+    protected override System.Threading.Tasks.Task<AuthenticateResult> HandleAuthenticateAsync() 
+        => System.Threading.Tasks.Task.FromResult(AuthenticateResult.Fail("Unauthorized"));
 }
