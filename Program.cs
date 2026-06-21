@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
-using TmsApi.Services; // Ensure these namespaces match your folders
+using TmsApi;             // Pulls in PaymentOptions from your root folder
+using TmsApi.Services; 
 using TmsApi.Workers;
 
 var builder = WebApplication.CreateBuilder(args); 
@@ -22,12 +23,17 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddHostedService<EnrollmentWorker>(); // Registers as a Singleton background service
 
+// --- Exercise 3: Strongly-Typed Options Startup Validation ---
+builder.Services.AddOptions<PaymentOptions>()
+    .BindConfiguration("Payments")       // Binds to the "Payments" section of appsettings.json
+    .ValidateDataAnnotations()          // Evaluates the [Required] and [Range] attributes
+    .ValidateOnStart();                  // Forces the application to crash if validation fails!
+
 builder.Host.UseDefaultServiceProvider(options =>
 {
     options.ValidateScopes = true;   // Catches Singletons capturing Scoped services
     options.ValidateOnBuild = true;  // Forces the app to crash IMMEDIATELY during 'dotnet run'
 });
-
 var app = builder.Build(); 
 app.UseMiddleware<RequestLoggingMiddleware>();
 
@@ -53,7 +59,6 @@ app.Map("/api/error", () => Results.Problem(
 ));
 
 app.Run();
-
 public class MyCustomHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public MyCustomHandler(
