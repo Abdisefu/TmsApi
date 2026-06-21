@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
+using TmsApi.Services; // Ensure these namespaces match your folders
+using TmsApi.Workers;
 
 var builder = WebApplication.CreateBuilder(args); 
 
@@ -17,6 +19,14 @@ builder.Services.AddAuthentication(options =>
 .AddScheme<AuthenticationSchemeOptions, MyCustomHandler>("DefaultScheme", null);
 
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+builder.Services.AddHostedService<EnrollmentWorker>(); // Registers as a Singleton background service
+
+builder.Host.UseDefaultServiceProvider(options =>
+{
+    options.ValidateScopes = true;   // Catches Singletons capturing Scoped services
+    options.ValidateOnBuild = true;  // Forces the app to crash IMMEDIATELY during 'dotnet run'
+});
 
 var app = builder.Build(); 
 app.UseMiddleware<RequestLoggingMiddleware>();
@@ -35,6 +45,7 @@ app.MapGet("/api/assessments/results", () =>
     return Results.Ok(System.Array.Empty<string>()); 
 })
 .RequireAuthorization(); 
+
 app.Map("/api/error", () => Results.Problem(
     detail: "An unexpected error occurred.",
     statusCode: 500,
