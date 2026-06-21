@@ -23,6 +23,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddHostedService<EnrollmentWorker>(); // Registers as a Singleton background service
 
+// 1. REGISTER CONTROLLER SERVICES
+builder.Services.AddControllers(); 
+
 // --- Exercise 3: Strongly-Typed Options Startup Validation ---
 builder.Services.AddOptions<PaymentOptions>()
     .BindConfiguration("Payments")       // Binds to the "Payments" section of appsettings.json
@@ -45,6 +48,7 @@ app.UseRouting();
 app.UseAuthentication(); 
 
 app.UseAuthorization(); 
+app.MapControllers(); 
 
 app.MapGet("/api/assessments/results", () => 
 {
