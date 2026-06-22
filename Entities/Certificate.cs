@@ -6,8 +6,6 @@ public class Certificate
 
 public int Id { get; set; }
 
-primary key
-
 public required string SerialNumber { get; set; } 
 
 public DateTime IssuedAt { get; set; } = DateTime.UtcNow;
