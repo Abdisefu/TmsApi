@@ -23,19 +23,21 @@ namespace TmsApi.Controllers
             var record = await enrollmentService.GetByIdAsync(id);
             return record is not null ? Ok(record) : NotFound();
         }
-
-        // POST /api/enrollments -> Creates a resource and returns 201 Created with Location Header
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateEnrollmentRequest request)
         {
-            // Call our structured logging-enabled enrollment service layer
             var record = await enrollmentService.EnrollAsync(request.StudentId, request.CourseCode);
-            
-            // This automagically constructs the URI string: /api/enrollments/{record.Id}
             return CreatedAtAction(nameof(GetById), new { id = record.Id }, record);
+        }
+
+        // DELETE /api/enrollments/{id} -> Returns 204 No Content or 404 Not Found
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(string id)
+        {
+            var deleted = await enrollmentService.DeleteAsync(id);
+            return deleted ? NoContent() : NotFound();
         }
     }
 
-    // --- Request Payload Structure ---
     public record CreateEnrollmentRequest(string StudentId, string CourseCode);
 }
