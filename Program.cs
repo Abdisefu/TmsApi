@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
-using TmsApi;             // Pulls in PaymentOptions from your root folder
+using TmsApi;             
 using TmsApi.Services; 
 using TmsApi.Workers;
 
@@ -21,33 +21,40 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
-builder.Services.AddHostedService<EnrollmentWorker>(); // Registers as a Singleton background service
+builder.Services.AddHostedService<EnrollmentWorker>(); 
 
 // 1. REGISTER CONTROLLER SERVICES
 builder.Services.AddControllers(); 
 
-// --- Exercise 3: Strongly-Typed Options Startup Validation ---
+// TODO1: Register the framework ProblemDetails service
+builder.Services.AddProblemDetails();
+
 builder.Services.AddOptions<PaymentOptions>()
-    .BindConfiguration("Payments")       // Binds to the "Payments" section of appsettings.json
-    .ValidateDataAnnotations()          // Evaluates the [Required] and [Range] attributes
-    .ValidateOnStart();                  // Forces the application to crash if validation fails!
+    .BindConfiguration("Payments")       
+    .ValidateDataAnnotations()          
+    .ValidateOnStart();                  
 
 builder.Host.UseDefaultServiceProvider(options =>
 {
-    options.ValidateScopes = true;   // Catches Singletons capturing Scoped services
-    options.ValidateOnBuild = true;  // Forces the app to crash IMMEDIATELY during 'dotnet run'
+    options.ValidateScopes = true;   
+    options.ValidateOnBuild = true;  
 });
-var app = builder.Build(); 
-app.UseMiddleware<RequestLoggingMiddleware>();
 
-// 2. Then Exception Handler (Points to our /api/error route below)
-app.UseExceptionHandler("/api/error"); 
+var app = builder.Build(); 
+
+// TODO2: Use parameterless ExceptionHandler to catch crashes and generate RFC 9457 details
+app.UseExceptionHandler();
+
+// TODO3: Turn bare empty responses (like bare 404s) into a matching JSON shape
+app.UseStatusCodePages();
+
+app.UseMiddleware<RequestLoggingMiddleware>();
 
 app.UseRouting(); 
 
 app.UseAuthentication(); 
-
 app.UseAuthorization(); 
+
 app.MapControllers(); 
 
 app.MapGet("/api/assessments/results", () => 
@@ -56,13 +63,14 @@ app.MapGet("/api/assessments/results", () =>
 })
 .RequireAuthorization(); 
 
-app.Map("/api/error", () => Results.Problem(
-    detail: "An unexpected error occurred.",
-    statusCode: 500,
-    title: "Internal Server Error"
-));
+// TODO4: Map a test route that intentionally throws the custom exception
+app.MapGet("/api/error", () =>
+{
+    throw new TmsDatabaseException("Simulated database failure for ProblemDetails testing");
+});
 
 app.Run();
+
 public class MyCustomHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public MyCustomHandler(
