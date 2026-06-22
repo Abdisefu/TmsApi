@@ -6,12 +6,9 @@ using Microsoft.AspNetCore.Http;
 using TmsApi;             
 using TmsApi.Services; 
 using TmsApi.Workers;
+using Scalar.AspNetCore; 
 
 var builder = WebApplication.CreateBuilder(args); 
-
-// ==========================================
-// SERVICES CONFIGURATION (DI Container)
-// ==========================================
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = "DefaultScheme";
@@ -23,11 +20,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddHostedService<EnrollmentWorker>(); 
 
-// 1. REGISTER CONTROLLER SERVICES
 builder.Services.AddControllers(); 
-
-// TODO1: Register the framework ProblemDetails service
 builder.Services.AddProblemDetails();
+builder.Services.AddOpenApi(); // Required for Scalar API metadata tracking
 
 builder.Services.AddOptions<PaymentOptions>()
     .BindConfiguration("Payments")       
@@ -41,15 +36,19 @@ builder.Host.UseDefaultServiceProvider(options =>
 });
 
 var app = builder.Build(); 
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+else
+{
+    app.UseExceptionHandler();
+}
 
-// TODO2: Use parameterless ExceptionHandler to catch crashes and generate RFC 9457 details
-app.UseExceptionHandler();
-
-// TODO3: Turn bare empty responses (like bare 404s) into a matching JSON shape
 app.UseStatusCodePages();
 
 app.UseMiddleware<RequestLoggingMiddleware>();
-
 app.UseRouting(); 
 
 app.UseAuthentication(); 
@@ -63,7 +62,6 @@ app.MapGet("/api/assessments/results", () =>
 })
 .RequireAuthorization(); 
 
-// TODO4: Map a test route that intentionally throws the custom exception
 app.MapGet("/api/error", () =>
 {
     throw new TmsDatabaseException("Simulated database failure for ProblemDetails testing");
