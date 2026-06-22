@@ -3,12 +3,18 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore; 
 using TmsApi;             
+using TmsApi.Data;    
 using TmsApi.Services; 
 using TmsApi.Workers;
 using Scalar.AspNetCore; 
 
 var builder = WebApplication.CreateBuilder(args); 
+
+builder.Services.AddDbContext<TmsDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("TmsDatabase")));
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = "DefaultScheme";
@@ -22,7 +28,7 @@ builder.Services.AddHostedService<EnrollmentWorker>();
 
 builder.Services.AddControllers(); 
 builder.Services.AddProblemDetails();
-builder.Services.AddOpenApi(); // Required for Scalar API metadata tracking
+builder.Services.AddOpenApi(); 
 
 builder.Services.AddOptions<PaymentOptions>()
     .BindConfiguration("Payments")       
@@ -36,6 +42,7 @@ builder.Host.UseDefaultServiceProvider(options =>
 });
 
 var app = builder.Build(); 
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -49,9 +56,11 @@ else
 app.UseStatusCodePages();
 
 app.UseMiddleware<RequestLoggingMiddleware>();
+
 app.UseRouting(); 
 
 app.UseAuthentication(); 
+
 app.UseAuthorization(); 
 
 app.MapControllers(); 
