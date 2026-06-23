@@ -10,15 +10,17 @@ public class EnrollmentConfiguration : IEntityTypeConfiguration<Enrollment>
     {
         builder.HasKey(e => e.Id);
 
-        // Explicitly defining relationships and foreign keys
+        // 1. Student to Enrollments (One-to-Many)
         builder.HasOne(e => e.Student)
             .WithMany(s => s.Enrollments)
             .HasForeignKey(e => e.StudentId)
-            .OnDelete(DeleteBehavior.Cascade); // Cascade behavior rule
+            .OnDelete(DeleteBehavior.Cascade); // If a student profile is deleted, wipe their records safely.
 
+        // 2. Course to Enrollments (One-to-Many)
         builder.HasOne(e => e.Course)
             .WithMany(c => c.Enrollments)
             .HasForeignKey(e => e.CourseId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict); 
+           
     }
 }
