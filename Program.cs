@@ -29,6 +29,9 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+
+builder.Services.AddScoped<DashboardService>();
+
 builder.Services.AddHostedService<EnrollmentWorker>(); 
 
 builder.Services.AddControllers(); 
@@ -61,9 +64,21 @@ else
 app.UseStatusCodePages();
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseRouting(); 
-app.UseAuthentication(); 
+    app.UseAuthentication(); 
 app.UseAuthorization(); 
 app.MapControllers(); 
+
+app.MapGet("/api/students/paged", async (DashboardService dashboardService, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) =>
+{
+    var students = await dashboardService.GetPagedStudentsAsync(page, pageSize, cancellationToken);
+    return Results.Ok(students);
+});
+
+app.MapGet("/api/dashboard/top-courses", async (DashboardService dashboardService, CancellationToken cancellationToken) =>
+{
+    var topCourses = await dashboardService.GetTopCoursesAsync(cancellationToken);
+    return Results.Ok(topCourses);
+});
 
 app.MapGet("/api/assessments/results", () => 
 {
