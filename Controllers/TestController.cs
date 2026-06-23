@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Linq;
+using System.Threading.Tasks;          
+using Microsoft.EntityFrameworkCore; 
 using TmsApi.Data;
 
 namespace TmsApi.Controllers;
@@ -9,7 +11,6 @@ namespace TmsApi.Controllers;
 [Route("api/test")]
 public class TestController(TmsDbContext context) : ControllerBase
 {
-    // Non-translatable helper method
     private static bool IsHonorRoll(decimal gpa)
     {
         return gpa >= 3.5m;
@@ -49,14 +50,11 @@ public class TestController(TmsDbContext context) : ControllerBase
             return BadRequest(new { Message = ex.Message, Hint = "EF Core cannot convert custom C# code into SQL dialect." });
         }
     }
-
-    // RESOLUTION 1: Server-Side Evaluation (Highly Preferred)
     [HttpGet("translation-fix-server")]
     public IActionResult TestTranslationFixServer()
     {
         Console.WriteLine("\n>>> [FIX 1] Running server-side evaluation...");
         
-        // Logic written inline so the LINQ provider can build a relational AST
         var students = context.Students
             .Where(s => s.GPA >= 3.5m) 
             .ToList();
@@ -64,19 +62,90 @@ public class TestController(TmsDbContext context) : ControllerBase
         Console.WriteLine(">>> Finished server-side filtering.\n");
         return Ok(students);
     }
-
-    // RESOLUTION 2: Client-Side Evaluation (Use cautiously!)
     [HttpGet("translation-fix-client")]
     public IActionResult TestTranslationFixClient()
     {
         Console.WriteLine("\n>>> [FIX 2] Running client-side evaluation...");
         
         var students = context.Students
-            .AsEnumerable() // Wires open the pipe: pulls EVERY single row into memory first
-            .Where(s => IsHonorRoll(s.GPA)) // Safe to use custom C# now because it's running in RAM
+            .AsEnumerable() 
+            .Where(s => IsHonorRoll(s.GPA)) 
             .ToList();
 
         Console.WriteLine(">>> Finished client-side filtering.\n");
         return Ok(students);
+    }
+    [HttpGet("reporting/active-high-gpa-count")]
+    public async Task<IActionResult> GetActiveHighGpaCount()
+    {
+        Console.WriteLine("\n>>> [REPORT 1] Calculating active students count (GPA >= 3.0)...");
+        
+        var count = await context.Students
+            .Where(s => s.IsActive && s.GPA >= 3.0m)
+            .CountAsync(); 
+
+        return Ok(new { ActiveHighGpaCount = count });
+    }
+    [HttpGet("reporting/courses-by-enrollment")]
+    public async Task<IActionResult> GetCoursesByEnrollment()
+    {
+        Console.WriteLine("\n>>> [REPORT 2] Fetching courses sorted by enrollment density...");
+        
+        var list = await context.Courses
+            .Select(c => new
+            {
+                c.Title,
+                EnrollmentCount = c.Enrollments.Count
+            })
+            .OrderByDescending(x => x.EnrollmentCount)
+            .ToListAsync(); 
+
+        return Ok(list);
+    }
+    [HttpGet("reporting/average-gpa-per-course")]
+    public async Task<IActionResult> GetAverageGpaPerCourse()
+    {
+        Console.WriteLine("\n>>> [REPORT 3] Aggregating average student GPA per course...");
+        
+        var list = await context.Enrollments
+            .GroupBy(e => e.Course.Title)
+            .Select(g => new
+            {
+                Course = g.Key,
+                AverageGPA = g.Average(e => e.Student.GPA)
+            })
+            .ToListAsync(); 
+
+        return Ok(list);
+    }
+    [HttpGet("reporting/unenrolled-students-subquery")]
+    public async Task<IActionResult> GetUnenrolledStudentsSubquery()
+    {
+        Console.WriteLine("\n>>> [REPORT 4A] Finding unenrolled students using NOT EXISTS subquery...");
+        
+        var list = await context.Students
+            .Where(s => !s.Enrollments.Any())
+            .Select(s => s.Name)
+            .ToListAsync(); 
+
+        return Ok(list);
+    }
+
+    // 4B. Which students have zero enrollments? (Approach B: LeftJoin)
+    [HttpGet("reporting/unenrolled-students-leftjoin")]
+    public async Task<IActionResult> GetUnenrolledStudentsLeftJoin()
+    {
+        Console.WriteLine("\n>>> [REPORT 4B] Finding unenrolled students using LeftJoin configuration...");
+        
+        var list = await context.Students
+            .LeftJoin(context.Enrollments,
+                s => s.Id,
+                e => e.StudentId,
+                (s, e) => new { s, e })
+            .Where(x => x.e == null)
+            .Select(x => x.s.Name)
+            .ToListAsync(); 
+
+        return Ok(list);
     }
 }
